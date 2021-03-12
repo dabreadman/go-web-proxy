@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -13,22 +13,41 @@ var cache map[string]byte
 func httpsHandler(w http.ResponseWriter, req *http.Request) {
 	req.URL.Scheme = "https"
 
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "webserver doesn't support hijacking", http.StatusInternalServerError)
+		return
+	}
+	clientCon, buffrw, err := hj.Hijack()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	server := req.URL.Host
 	serverCon, err := net.Dial("tcp", server)
-	fmt.Println(serverCon.RemoteAddr())
-	// Connection to client
-	// io.Copy(serverCon,clientCon)
-	// io.Copy(clientCon,serverCon)
-
 	if err != nil {
-		log.Panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+	// Doesn't work because connect is hijacked
+	// w.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+	buffrw.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n")
+	buffrw.Flush()
+	// Connection to client
+	go io.Copy(serverCon, buffrw)
+	io.Copy(buffrw, serverCon)
+
+	serverCon.Close()
+	clientCon.Close()
+
 }
 
 func httpHandler(w http.ResponseWriter, req *http.Request) {
+	return
 	// If request/response is cached
-	if cachedRes, ok := cache[req.Host]; ok {
-		fmt.Printf("%s\n", string(cachedRes))
+	if cachedRes, ok := cache[req.URL.RawPath]; ok {
+		log.Printf("%s\n", string(cachedRes))
 		// If-Not-Modified request
 		// If 304{
 		//		Send cached response back to client
@@ -38,17 +57,25 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 		// }
 		//
 	}
-	fmt.Printf("http %s \n", req.Host)
+	log.Printf("http %s \n", req.Host)
 	// Make request
 	// Buffer response
 	// Make header
 	// Cache
+	/*
+		cache[url]=res
+		go func() {
+		    time.Sleep(90 * time.Second)
+		    delete(cache,res)
+		    }()
+	*/
+
 	// Send to client
 	resp, err := http.Get(req.URL.RawPath)
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		log.Printf("%s\n", err)
 	}
-	fmt.Printf("%d", resp.StatusCode)
+	log.Printf("%d", resp.StatusCode)
 	defer resp.Body.Close()
 }
 
