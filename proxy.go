@@ -69,27 +69,30 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 		// Add header to check if cache is fresh
 		location, _ := time.LoadLocation("GMT")
 		time := time.Now().In(location).Format(http.TimeFormat)
-		req.Header.Set("If-Modified-Since", time)
-		req.Header.Set("If-None-Match", cachedRes.headers.Get("Etag"))
-		log.Printf("Time: %v\n", time)
-		resp, err := http.Get(URI)
+
+		client := &http.Client{}
+		req, err := http.NewRequest("GET", URI, nil)
+		if err != nil {
+			log.Printf("%s\n", err)
+		}
+		req.Header.Add("If-Modified-Since", time)
+		resp, err := client.Do(req)
 		if err != nil {
 			log.Printf("%s\n", err)
 		}
 		defer resp.Body.Close()
 		// If not modified, use cache
 		log.Printf("%d %s", resp.StatusCode, URI)
-		//if resp.StatusCode == 200 {
-		log.Println("Retrieving from Cache")
-		for k, v := range cachedRes.headers {
-			for _, vv := range v {
-				w.Header().Set(k, vv)
+		if resp.StatusCode == 304 {
+			for k, v := range cachedRes.headers {
+				for _, vv := range v {
+					w.Header().Set(k, vv)
+				}
 			}
+			fmt.Fprint(w, string(cachedRes.body))
+			log.Printf("Used cache, returning")
+			return
 		}
-		fmt.Fprint(w, string(cachedRes.body))
-		log.Printf("Used cache, returning")
-		return
-		//}
 	}
 
 	// Send to client
