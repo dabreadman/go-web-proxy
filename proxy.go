@@ -13,9 +13,10 @@ import (
 )
 
 var blockList map[string]bool = map[string]bool{
-	// "example.com": true,
+	//"example.com": true,
 }
 
+//var blockList sync.Map
 var cacheSavings map[string]*cacheSaving = make(map[string]*cacheSaving)
 var cache map[string]cacheItem = make(map[string]cacheItem)
 var CACHE_EXPIRY = 90 * time.Second
@@ -53,7 +54,7 @@ func colorOutput(str string, color string) string {
 }
 
 func httpsHandler(w http.ResponseWriter, req *http.Request) {
-	startTimer := time.Now()
+	//startTimer := time.Now()
 	req.URL.Scheme = "https"
 
 	hj, ok := w.(http.Hijacker)
@@ -78,10 +79,10 @@ func httpsHandler(w http.ResponseWriter, req *http.Request) {
 	// w.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
 	buffrw.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n")
 	buffrw.Flush()
-
+	//elapsed := time.Since(startTimer)
 	// Logging
-	log.Printf("%s Connection Established: %s [%s]",
-		colorOutput("HTTPS", "green"), colorOutput(server, "yellow"), colorOutput(time.Since(startTimer).String(), "cyan"))
+	//log.Printf("%s Connection Established: %s [%s]",
+	//colorOutput("HTTPS", "green"), colorOutput(server, "yellow"), colorOutput(elapsed.String(), "cyan"))
 	// Logging
 
 	// Connection to client
@@ -125,13 +126,21 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 			// Update time and bandwidth saved
 			elapsed := time.Since(startTimer)
 			savingPointer := cacheSavings[URI]
-			savingPointer.timeSaved += (savingPointer.lastUncachedTime - elapsed)
-			savingPointer.dataSaved += len(cachedRes.body)
-			fmt.Printf("Time saved: %v (%v-%v), bandwidth saved: %v bytes \n", savingPointer.lastUncachedTime, elapsed, savingPointer.timeSaved, savingPointer.dataSaved)
+			timeSaved := savingPointer.lastUncachedTime - elapsed
+			cachedBodyLen := len(cachedRes.body)
+			savingPointer.timeSaved += timeSaved
+			savingPointer.dataSaved += cachedBodyLen
 
 			// Logging
-			//log.Printf("%s  Completed Transmission: %s [%s] %s",
-			//colorOutput("HTTP", "green"), colorOutput(URI, "yellow"), colorOutput(elapsed.String(), "cyan"), colorOutput("CACHED", "gray"))
+			//if timeSaved > 0 {
+			//log.Printf("%s  Completed Transmission: %s [%s] %s %s",
+			//colorOutput("HTTP", "green"), colorOutput(URI, "yellow"), colorOutput(elapsed.String(), "cyan"),
+			//colorOutput(strconv.Itoa(cachedBodyLen)+" bytes CACHED", "gray"), colorOutput("["+timeSaved.String()+"]", "green"))
+			//} else {
+			//log.Printf("%s  Completed Transmission: %s [%s] %s %s",
+			//colorOutput("HTTP", "green"), colorOutput(URI, "yellow"), colorOutput(elapsed.String(), "cyan"),
+			//colorOutput(strconv.Itoa(cachedBodyLen)+" bytes CACHED", "gray"), colorOutput("["+(-timeSaved).String()+"]", "red"))
+			//}
 			// Logging
 
 			return
@@ -185,19 +194,21 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 
 	go func(date string) {
 		time.Sleep(CACHE_EXPIRY)
-		if cache[URI].date != date {
+		if cache[URI].date == date {
 			delete(cache, URI)
+
+			// Logging
+			//log.Printf("%s for %s registered at %s\n", colorOutput("Killing cache", "red"), colorOutput(URI, "yellow"), colorOutput(cachedData.date, "cyan"))
+			// Logging
 		}
-
-		// Logging
-		log.Printf("%s for %s registered at %s\n", colorOutput("Killing cache", "red"), colorOutput(URI, "yellow"), colorOutput(cachedData.date, "cyan"))
-		// Logging
-
 	}(respDate)
 }
 
 func networkHandler(w http.ResponseWriter, req *http.Request) {
 	host := req.Host
+	exist, ok := blockList[host]
+	log.Printf("Host: %s, %s\nCache exist? %t set to %t", host, req.RequestURI, exist, ok)
+
 	// If not in blockList
 	if !blockList[host] {
 		// If HTTPS
@@ -215,9 +226,9 @@ func networkHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func blockListHandler() {
-	reader := bufio.NewReader(os.Stdin)
+func CLIHandler() {
 	fmt.Println("Proxy Console")
+	reader := bufio.NewReader(os.Stdin)
 
 	for {
 		text, err := reader.ReadString('\n')
@@ -225,24 +236,24 @@ func blockListHandler() {
 			log.Println(err)
 		}
 		// convert CRLF to LF
-		text = strings.Replace(text, "\n", "", -1)
+		text = strings.Replace(text, "\r\n", "", -1)
+		log.Println(text)
 		arguments := strings.Split(text, " ")
-		switch arguments[0] {
-		case "list":
+
+		if arguments[0] == "list" {
 			log.Printf("%v\n", blockList)
-		case "block":
+		} else if arguments[0] == "block" {
 			blockList[arguments[1]] = true
-		case "unblock":
+		} else if arguments[0] == "unblock" {
 			delete(blockList, arguments[1])
-		default:
+		} else {
 			log.Println("# Wrong input: <block/unblock> <URI>", text)
 		}
-		log.Printf("Entered line: %s\n", text)
 	}
 }
 
 func main() {
-	go blockListHandler()
+	go CLIHandler()
 	networkHandler := http.HandlerFunc(networkHandler)
 	// Create a thread of networkHandler for each connection
 	http.ListenAndServe(":8080", networkHandler)
