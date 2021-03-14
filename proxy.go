@@ -192,11 +192,12 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 
 	go func(date string) {
 		time.Sleep(CACHE_EXPIRY)
-		if cache[URI].date == date {
+		cachedResp := cache[URI]
+		if cachedResp.date == date {
 			delete(cache, URI)
 
 			// Logging
-			log.Printf("%s for %s registered at %s\n", colorOutput("Killing cache", "red"), colorOutput(URI, "yellow"), colorOutput(cache[URI].date, "cyan"))
+			log.Printf("%s for %s registered at %s\n", colorOutput("Killing cache", "red"), colorOutput(URI, "yellow"), colorOutput(cachedResp.date, "cyan"))
 			// Logging
 		}
 	}(respDate)
@@ -204,7 +205,6 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 
 func networkHandler(w http.ResponseWriter, req *http.Request) {
 	host := req.Host
-
 	// If not in blockList
 	if !blockList[host] {
 		// If HTTPS
@@ -223,7 +223,7 @@ func networkHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func CLIHandler() {
-	fmt.Println("Proxy Console")
+	fmt.Println("Proxy Console [:8080]")
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
@@ -267,7 +267,7 @@ func CLIHandler() {
 			log.Printf("total data saved %s bytes, total time saved %v", colorOutput(strconv.Itoa(totalDataSaved), "green"), colorOutput(totalTimeSaved.String(), "green"))
 
 		} else {
-			log.Printf("%s %s %s\n", colorOutput("WRONG INPUT", "red"), colorOutput("(un)?block", "cyan"), colorOutput("HOST", "yellow"))
+			log.Printf("%s %s %s | list | %s\n", colorOutput("WRONG INPUT:", "red"), colorOutput("(un)?block", "cyan"), colorOutput("HOST", "yellow"), colorOutput("saved", "green"))
 		}
 	}
 }
