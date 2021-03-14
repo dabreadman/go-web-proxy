@@ -8,15 +8,12 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
-var blockList map[string]bool = map[string]bool{
-	//"example.com": true,
-}
-
-//var blockList sync.Map
+var blockList map[string]bool = make(map[string]bool)
 var cacheSavings map[string]*cacheSaving = make(map[string]*cacheSaving)
 var cache map[string]cacheItem = make(map[string]cacheItem)
 var CACHE_EXPIRY = 90 * time.Second
@@ -54,7 +51,7 @@ func colorOutput(str string, color string) string {
 }
 
 func httpsHandler(w http.ResponseWriter, req *http.Request) {
-	//startTimer := time.Now()
+	startTimer := time.Now()
 	req.URL.Scheme = "https"
 
 	hj, ok := w.(http.Hijacker)
@@ -79,10 +76,11 @@ func httpsHandler(w http.ResponseWriter, req *http.Request) {
 	// w.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
 	buffrw.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n")
 	buffrw.Flush()
-	//elapsed := time.Since(startTimer)
+
 	// Logging
-	//log.Printf("%s Connection Established: %s [%s]",
-	//colorOutput("HTTPS", "green"), colorOutput(server, "yellow"), colorOutput(elapsed.String(), "cyan"))
+	elapsed := time.Since(startTimer)
+	log.Printf("%s Connection Established: %s [%s]",
+		colorOutput("HTTPS", "green"), colorOutput(server, "yellow"), colorOutput(elapsed.String(), "cyan"))
 	// Logging
 
 	// Connection to client
@@ -132,15 +130,15 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 			savingPointer.dataSaved += cachedBodyLen
 
 			// Logging
-			//if timeSaved > 0 {
-			//log.Printf("%s  Completed Transmission: %s [%s] %s %s",
-			//colorOutput("HTTP", "green"), colorOutput(URI, "yellow"), colorOutput(elapsed.String(), "cyan"),
-			//colorOutput(strconv.Itoa(cachedBodyLen)+" bytes CACHED", "gray"), colorOutput("["+timeSaved.String()+"]", "green"))
-			//} else {
-			//log.Printf("%s  Completed Transmission: %s [%s] %s %s",
-			//colorOutput("HTTP", "green"), colorOutput(URI, "yellow"), colorOutput(elapsed.String(), "cyan"),
-			//colorOutput(strconv.Itoa(cachedBodyLen)+" bytes CACHED", "gray"), colorOutput("["+(-timeSaved).String()+"]", "red"))
-			//}
+			if timeSaved > 0 {
+				log.Printf("%s  Completed Transmission: %s [%s] %s [%s]",
+					colorOutput("HTTP", "green"), colorOutput(URI, "yellow"), colorOutput(elapsed.String(), "cyan"),
+					colorOutput(strconv.Itoa(cachedBodyLen)+" bytes CACHED", "gray"), colorOutput(timeSaved.String(), "green"))
+			} else {
+				log.Printf("%s  Completed Transmission: %s [%s] %s [%s]",
+					colorOutput("HTTP", "green"), colorOutput(URI, "yellow"), colorOutput(elapsed.String(), "cyan"),
+					colorOutput(strconv.Itoa(cachedBodyLen)+" bytes CACHED", "gray"), colorOutput((-timeSaved).String(), "red"))
+			}
 			// Logging
 
 			return
@@ -168,8 +166,8 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprint(w, string(body))
 	elapsed := time.Since(startTimer)
 	// Logging
-	//log.Printf("%s  Completed Transmission: %s [%s]",
-	//colorOutput("HTTP", "green"), colorOutput(URI, "yellow"), colorOutput(elapsed.String(), "cyan"))
+	log.Printf("%s  Completed Transmission: %s [%s]",
+		colorOutput("HTTP", "green"), colorOutput(URI, "yellow"), colorOutput(elapsed.String(), "cyan"))
 	// Logging
 
 	// Cache and set cache expiry
@@ -198,7 +196,7 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 			delete(cache, URI)
 
 			// Logging
-			//log.Printf("%s for %s registered at %s\n", colorOutput("Killing cache", "red"), colorOutput(URI, "yellow"), colorOutput(cachedData.date, "cyan"))
+			log.Printf("%s for %s registered at %s\n", colorOutput("Killing cache", "red"), colorOutput(URI, "yellow"), colorOutput(cache[URI].date, "cyan"))
 			// Logging
 		}
 	}(respDate)
@@ -206,8 +204,6 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 
 func networkHandler(w http.ResponseWriter, req *http.Request) {
 	host := req.Host
-	exist, ok := blockList[host]
-	log.Printf("Host: %s, %s\nCache exist? %t set to %t", host, req.RequestURI, exist, ok)
 
 	// If not in blockList
 	if !blockList[host] {
@@ -221,7 +217,7 @@ func networkHandler(w http.ResponseWriter, req *http.Request) {
 		}
 		// Return 403 if in blockList
 	} else {
-		log.Printf("Blocked %s\n", req.Host)
+		log.Printf("%s %s\n", colorOutput("BLOCKED", "red"), colorOutput(req.Host, "yellow"))
 		w.WriteHeader(http.StatusForbidden)
 	}
 }
@@ -237,17 +233,41 @@ func CLIHandler() {
 		}
 		// convert CRLF to LF
 		text = strings.Replace(text, "\r\n", "", -1)
-		log.Println(text)
 		arguments := strings.Split(text, " ")
-
+		// To show blocklist
 		if arguments[0] == "list" {
 			log.Printf("%v\n", blockList)
+			// To block
 		} else if arguments[0] == "block" {
-			blockList[arguments[1]] = true
+			_, exist := blockList[arguments[1]]
+			if exist {
+				log.Printf("%s %s", colorOutput("ALREADY BLOCKED", "red"), colorOutput(arguments[1], "yellow"))
+			} else {
+				blockList[arguments[1]] = true
+				log.Printf("%s%s %s", colorOutput("B", "red"), colorOutput("LOCKED", "green"), colorOutput(arguments[1], "yellow"))
+			}
+			// To unblock
 		} else if arguments[0] == "unblock" {
-			delete(blockList, arguments[1])
+			_, exist := blockList[arguments[1]]
+			if exist {
+				delete(blockList, arguments[1])
+				log.Printf("%s %s", colorOutput("UNBLOCKED", "green"), colorOutput(arguments[1], "yellow"))
+
+			} else {
+				log.Printf("%s %s", colorOutput("NOT BLOCKED", "red"), colorOutput(arguments[1], "yellow"))
+			}
+			// To list data/time saved
+		} else if arguments[0] == "saved" {
+			totalDataSaved := 0
+			totalTimeSaved := time.Duration(0)
+			for _, saving := range cacheSavings {
+				totalDataSaved += saving.dataSaved
+				totalTimeSaved += saving.timeSaved
+			}
+			log.Printf("total data saved %s bytes, total time saved %v", colorOutput(strconv.Itoa(totalDataSaved), "green"), colorOutput(totalTimeSaved.String(), "green"))
+
 		} else {
-			log.Println("# Wrong input: <block/unblock> <URI>", text)
+			log.Printf("%s %s %s\n", colorOutput("WRONG INPUT", "red"), colorOutput("(un)?block", "cyan"), colorOutput("HOST", "yellow"))
 		}
 	}
 }
