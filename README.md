@@ -15,7 +15,7 @@ Read more about the proxy [here](https://github.com/dabreadman/go-web-proxy/blob
 
 # Use
 <sup>Please make sure [Go](https://golang.org/dl/) is present.</sup>
-1. Clone [go-web-proxy](https://github.com/dabreadman/go-web-proxy.git).
+1. Clone go-web-proxy `git clone https://github.com/dabreadman/go-web-proxy.git`.
 2. Run  `go run proxy.go`.
 This will serve the proxy server on `127.0.0.1:8080`.
 
@@ -55,9 +55,12 @@ A cache killer is hired to kill the cache in `CACHE_EXPIRY` time if it was not u
 - A 304 (Not Modified) will be returned if cache is still usable, in which the cached response will be forwarded to the client.
 As a 304 response does not carry body, it saves bandwidth and time as connection between **intranet** *(proxy to client)* is significantly faster than connection between **internet** *(proxy to server)*.
 
-`CLIhandler` reads input from `os.Stdin`, and parse it to perform operations based on the input arguments.
+`CLIhandler` reads input from `os.Stdin`, and parse it to perform operations based on the input arguments.  
+I removed `\r\n` from input as this was developed on `Windows` environment. For Linux, remove `\n` instead.
 
-`colorOutput` colors the terminal output by surrounding strings with special characters.
-Read more [here](https://misc.flogisoft.com/bash/tip_colors_and_formatting)
+`colorOutput` colors the terminal output by surrounding strings with special characters.  
+Read more [here](https://misc.flogisoft.com/bash/tip_colors_and_formatting)  
+`\e` is replaced with `\033` in this program.  
+Read more about the difference between the two [here](https://unix.stackexchange.com/questions/89812/the-difference-between-e-and).
 
 
