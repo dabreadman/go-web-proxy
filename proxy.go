@@ -205,6 +205,7 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 
 func networkHandler(w http.ResponseWriter, req *http.Request) {
 	host := req.Host
+	t := blockList
 	// If not in blockList
 	if !blockList[host] {
 		// If HTTPS
@@ -217,22 +218,24 @@ func networkHandler(w http.ResponseWriter, req *http.Request) {
 		}
 		// Return 403 if in blockList
 	} else {
-		log.Printf("%s %s\n", colorOutput("BLOCKED", "red"), colorOutput(req.Host, "yellow"))
+		log.Printf("%s %s %v\n", colorOutput("BLOCKED", "red"), colorOutput(req.Host, "yellow"), t)
 		w.WriteHeader(http.StatusForbidden)
 	}
 }
 
-func CLIHandler() {
+func CLIHandler(reader io.Reader) {
 	fmt.Println("Proxy Console [:8080]")
-	reader := bufio.NewReader(os.Stdin)
+	bufReader := bufio.NewReader(reader)
 
 	for {
-		text, err := reader.ReadString('\n')
+		text, err := bufReader.ReadString('\n')
 		if err != nil {
-			log.Println(err)
+			//log.Println(err)
 		}
 		// convert CRLF to LF
 		text = strings.Replace(text, "\r\n", "", -1)
+		// LF purge
+		text = strings.Replace(text, "\n", "", -1)
 		arguments := strings.Split(text, " ")
 		// To show blocklist
 		if arguments[0] == "list" {
@@ -265,16 +268,22 @@ func CLIHandler() {
 				totalTimeSaved += saving.timeSaved
 			}
 			log.Printf("total data saved %s bytes, total time saved %v", colorOutput(strconv.Itoa(totalDataSaved), "green"), colorOutput(totalTimeSaved.String(), "green"))
-
+		} else if arguments[0] == "" {
+			_ = 1 + 1
 		} else {
-			log.Printf("%s %s %s | list | %s\n", colorOutput("WRONG INPUT:", "red"), colorOutput("(un)?block", "cyan"), colorOutput("HOST", "yellow"), colorOutput("saved", "green"))
+			log.Printf("%s %s %s | list | %s\nInput: %q", colorOutput("WRONG INPUT:", "red"), colorOutput("(un)?block", "cyan"), colorOutput("HOST", "yellow"), colorOutput("saved", "green"), text)
 		}
 	}
 }
 
 func main() {
-	go CLIHandler()
+	go CLIHandler(os.Stdin)
 	networkHandler := http.HandlerFunc(networkHandler)
 	// Create a thread of networkHandler for each connection
-	http.ListenAndServe(":8080", networkHandler)
+	server := http.Server{
+		Addr:    ":8080",
+		Handler: networkHandler,
+	}
+	server.ListenAndServe()
+
 }
