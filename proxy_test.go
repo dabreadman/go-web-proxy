@@ -3,72 +3,67 @@ package main
 import (
 	"io"
 	"net/http"
-	"os"
+	"net/http/httptest"
 	"testing"
 )
 
-func TestHandleHTTPS(t *testing.T) {
-	NetworkHandler := http.HandlerFunc(networkHandler)
-	// Create a thread of networkHandler for each connection
-
-	cleanResp, err := http.Get("https://example.com")
-	if err != nil {
-		t.Errorf("HTTPs failed, err: %q", err)
-	}
-
-	go http.ListenAndServe(":8080", NetworkHandler)
-	os.Setenv("HTTP_PROXY", "http://localhost:8080")
-	proxyResp, err := http.Get("https://example.com")
-
-	if err != nil {
-		t.Errorf("HTTPs failed, err: %q", err)
-	}
-
-	cleanBody, err := io.ReadAll(cleanResp.Body)
-	if err != nil {
-		t.Errorf("HTTPs failed, err: %q", err)
-	}
-
-	proxyBody, err := io.ReadAll(proxyResp.Body)
-	if err != nil {
-		t.Errorf("HTTPs failed, err: %q", err)
-	}
-
-	if string(cleanBody) != string(proxyBody) {
-		t.Errorf("HTTPs failed, body different.\nw/o proxy: %s\nw/ proxy: %s", cleanBody, proxyBody)
-	}
-
-}
-
 func TestHandleHTTP(t *testing.T) {
-	NetworkHandler := http.HandlerFunc(networkHandler)
-	// Create a thread of networkHandler for each connection
+	req, err := http.NewRequest(http.MethodGet, "http://www.example.com", nil)
 
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.RequestURI = "http://www.example.com"
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(networkHandler)
+
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("blocklist: %v\nstatus: %v", blockList, status)
+	}
 	cleanResp, err := http.Get("http://example.com")
 	if err != nil {
-		t.Errorf("HTTP failed, err: %q", err)
-	}
-
-	go http.ListenAndServe(":8080", NetworkHandler)
-	os.Setenv("HTTP_PROXY", "http://localhost:8080")
-	proxyResp, err := http.Get("https://example.com")
-
-	if err != nil {
-		t.Errorf("HTTP failed, err: %q", err)
+		t.Errorf("HTTPs failed, err: %q", err)
 	}
 
 	cleanBody, err := io.ReadAll(cleanResp.Body)
 	if err != nil {
-		t.Errorf("HTTP failed, err: %q", err)
+		t.Errorf("HTTPs failed, err: %q", err)
 	}
-
-	proxyBody, err := io.ReadAll(proxyResp.Body)
-	if err != nil {
-		t.Errorf("HTTP failed, err: %q", err)
+	if string(cleanBody) != string(rr.Body.String()) {
+		t.Errorf("HTTPs failed, body different.\nw/o proxy: %s\nw/ proxy: %s", cleanBody, rr.Body.String())
 	}
-
-	if string(cleanBody) != string(proxyBody) {
-		t.Errorf("HTTP failed, body different.\nw/o proxy: %s\nw/ proxy: %s", cleanBody, proxyBody)
-	}
-
 }
+
+// func TestHandleHTTPS(t *testing.T) {
+// 	req, err := http.NewRequest(http.MethodConnect, "www.example.com", nil)
+
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	req.RequestURI = "https://www.example.com"
+
+// 	rr := httptest.NewRecorder()
+// 	handler := http.HandlerFunc(networkHandler)
+
+// 	handler.ServeHTTP(rr, req)
+
+// 	if status := rr.Code; status != http.StatusOK {
+// 		t.Errorf("blocklist: %v\nstatus: %v", blockList, status)
+// 	}
+
+// 	cleanResp, err := http.Get("https://www.example.com")
+// 	if err != nil {
+// 		t.Errorf("HTTPs failed, err: %q", err)
+// 	}
+
+// 	cleanBody, err := io.ReadAll(cleanResp.Body)
+// 	if err != nil {
+// 		t.Errorf("HTTPs failed, err: %q", err)
+// 	}
+// 	if string(cleanBody) != string(rr.Body.String()) {
+// 		t.Errorf("HTTPs failed, body different.\nw/o proxy: %s\nw/ proxy: %s", cleanBody, rr.Body.String())
+// 	}
+// }
