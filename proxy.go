@@ -229,8 +229,8 @@ func CLIHandler(reader io.Reader) {
 
 	for {
 		text, err := bufReader.ReadString('\n')
-		if err != nil {
-			//log.Println(err)
+		if err != nil && err != io.EOF {
+			log.Println(err)
 		}
 		// convert CRLF to LF
 		text = strings.Replace(text, "\r\n", "", -1)
