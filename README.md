@@ -63,4 +63,5 @@ Read more [here](https://misc.flogisoft.com/bash/tip_colors_and_formatting)
 `\e` is replaced with `\033` in this program.  
 Read more about the difference between the two [here](https://unix.stackexchange.com/questions/89812/the-difference-between-e-and).
 
+<sub>Unit test is still in shambles</sub>
 
