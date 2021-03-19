@@ -128,7 +128,7 @@ func TestHTTPBlock(t *testing.T) {
 // 		t.Fatal(err)
 // 	}
 // 	req.RequestURI = "https://www.example.com"
-
+// Cannot be hijacked :I
 // 	rr := httptest.NewRecorder()
 // 	handler := http.HandlerFunc(networkHandler)
 
